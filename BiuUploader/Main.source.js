@@ -130,14 +130,14 @@ $(document).ready(() => {
             var sign = SparkMD5.hash(`${uid}${metaInfo[task.file.name].md5}${task.title}${task.artist}${task.album}${task.desc}${secretKey}`);
             // 获取上传Token
             var data = {
-                'uid': '118',
+                'uid': uid,
                 'filemd5': metaInfo[task.file.name].md5,
                 'title': task.title,
                 'singer': task.artist,
                 'album': task.album,
                 'remark': task.desc,
-                'sign': sign,
-                'force': '1'
+                'sign': sign
+                // 'force': '1'
             };
             $.ajax({
                 type: 'POST',
@@ -151,6 +151,7 @@ $(document).ready(() => {
                     else if (data.success === false) {
                         if (data.error_code === 2) {
                             console.log('撞车');
+                            checkUploadQueue();
                         }
                     }
                 }
