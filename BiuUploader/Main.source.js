@@ -37,7 +37,7 @@ $(document).ready(() => {
             var object = new AV.Asset.fromFile(file);
             object.on('buffer', percent => {
                 if (percent === 100){
-                    console.log(object);
+                    console.timeEnd('获取信息用时');
                     resolve(); // 无论有没有读到信息 读到尾了都返回
                 }
             });
