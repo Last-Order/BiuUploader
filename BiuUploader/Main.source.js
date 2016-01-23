@@ -17,6 +17,7 @@ $(document).ready(() => {
                     loadNext();
                 } else {
                     console.timeEnd('MD5计算');
+                    $('#load-file .progress-bar').width($('#load-file .progress-bar').width() === 0 ? '50%' : '100%');
                     resolve(spark.end());
                 }
             };
@@ -36,7 +37,7 @@ $(document).ready(() => {
         return new Promise((resolve, reject) => {
             var object = new AV.Asset.fromFile(file);
             object.on('buffer', percent => {
-                if (percent === 100){
+                if (percent === 100) {
                     console.timeEnd('获取信息用时');
                     resolve(); // 无论有没有读到信息 读到尾了都返回
                 }
@@ -55,6 +56,7 @@ $(document).ready(() => {
                 console.timeEnd('获取信息用时');
                 object.stop();
                 loadedInfoPile.push(file);
+                $('#load-file .progress-bar').width($('#load-file .progress-bar').width() === 0 ? '50%' : '100%');
                 resolve(info);
             });
             object.start();
@@ -64,6 +66,7 @@ $(document).ready(() => {
         if (loadInfoQueue.length > 0) {
             var file = loadInfoQueue.shift();
             console.log('Now Processing: ' + file.name);
+            $('#load-file .progress-bar').width('0%');
             Promise.all([loadMetaInfo(file), md5(file)]).then((data) => {
                 metaInfo[file.name] = data[0] || {};
                 metaInfo[file.name].md5 = data[1];
@@ -79,9 +82,9 @@ $(document).ready(() => {
             var file = inputInfoQueue.shift();
             $('.music-info').fadeIn('fast', () => {
                 onInput = true;
-                $('#inputTitle').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.title || '');
-                $('#inputArtist').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.artist || '');
-                $('#inputAlbum').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.album || '');
+                $('#inputTitle').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.title || $('#inputTitle').val() || '');
+                $('#inputArtist').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.artist || $('#inputArtist').val() ||'');
+                $('#inputAlbum').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.album || $('#inputAlbum').val() || '');
                 $('.music-info').data('file', file);
             });
         }
@@ -118,21 +121,36 @@ $(document).ready(() => {
             "artist": artist,
             "album": album,
             "desc": desc,
-            "DOM": $('.list-group-item').last()
+            "DOM": $('.list-group-item').last(),
+            "force": 0
         });
         onInput = false;
         console.log(uploadQueue);
         checkInputQueue();
         checkUploadQueue();
     });
+    var generateSongListItem = (item) => {
+        return $('<div>').addClass('list-group-item')
+            .append(
+                $('<div>').addClass('row-content')
+                    .append(
+                        $('<h4>').addClass('list-group-item-heading').html(`${item.title} / <small>${item.album}</small>`)
+                        )
+                    .append(
+                        $('<a>').addClass('btn').addClass('btn-primary').addClass('play').text('试听').data({
+                            'sid': item.sid
+                        })
+                        )
+                )
+    }
     var checkUploadQueue = () => {
         if (onUpload) {
             return;
         }
         if (uploadQueue.length > 0) {
             var task = uploadQueue.shift();
-            var uid = '118';
-            var secretKey = 'MKpyJfHVEPFsSijBudOaboYLUWkpbwkW';
+            var uid = 'YOUR UID HERE';
+            var secretKey = 'YOUR SECRET KEY HERE';
             var sign = SparkMD5.hash(`${uid}${metaInfo[task.file.name].md5}${task.title}${task.artist}${task.album}${task.desc}${secretKey}`);
             // 获取上传Token
             var data = {
@@ -142,8 +160,8 @@ $(document).ready(() => {
                 'singer': task.artist,
                 'album': task.album,
                 'remark': task.desc,
-                'sign': sign
-                // 'force': '1'
+                'sign': sign,
+                'force': task.force
             };
             $.ajax({
                 type: 'POST',
@@ -156,8 +174,51 @@ $(document).ready(() => {
                     }
                     else if (data.success === false) {
                         if (data.error_code === 2) {
-                            console.log('撞车');
+                            // 撞车处理
+                            task.DOM.append($('<div>').addClass('conflict'));
+                            var conflictBody = task.DOM.find('.conflict');
+                            conflictBody.append(
+                                $('<a>').addClass('btn').addClass('btn-warning').text('处理撞车')
+                                );
+                            conflictBody.find('.btn').click(function () {
+                                $(this).remove();
+                                conflictBody.append(
+                                    $('<h3>').text('可能撞车的音乐列表')
+                                    )
+                                data.result.map((item) => {
+                                    conflictBody.append(
+                                        $('<div>').addClass('list-group')
+                                            .append(
+                                                generateSongListItem(item)
+                                                )
+                                        );
+                                    conflictBody.find('.play').click(function () {
+                                        $(this).after(`<div><iframe src="http://biu.moe/Api/shareBox?sid=${$(this).data('sid') }&autoPlay=1" frameborder="0" height="50"></iframe></div>`)
+                                    })
+                                });
+                                conflictBody.append(
+                                    $('<a>').addClass('btn').addClass('btn-warning').addClass('force').text('不要拦我我要传')
+                                    );
+                                $('.force').click(function () {
+                                    uploadQueue.push({
+                                        "file": task.file,
+                                        "title": task.title,
+                                        "artist": task.artist,
+                                        "album": task.album,
+                                        "desc": task.desc,
+                                        "DOM": task.DOM,
+                                        "force": 1
+                                    });
+                                    conflictBody.fadeOut('fast', function () {
+                                        $(this).remove();
+                                    });
+                                    checkUploadQueue();
+                                })
+                            })
                             checkUploadQueue();
+                        }
+                        else {
+                            task.DOM.find('h4').css('color', '#FF0000');
                         }
                     }
                 }
@@ -216,6 +277,7 @@ $(document).ready(() => {
         onInput = false;
         $('.music-info').fadeOut('fast');
         for (var file = 0; file < $(".file-select")[0].files.length; file++) {
+            // 有无效的 可遍历的项 故此处不用for in
             var fileList = $(".file-select")[0].files;
             loadInfoQueue.push(fileList[file]);
         }
