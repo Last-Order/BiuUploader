@@ -37,6 +37,12 @@ $(document).ready(function () {
     var loadMetaInfo = function loadMetaInfo(file) {
         return new Promise(function (resolve, reject) {
             var object = new AV.Asset.fromFile(file);
+            object.on('buffer', function (percent) {
+                if (percent === 100) {
+                    console.log(object);
+                    resolve(); // 无论有没有读到信息 读到尾了都返回
+                }
+            });
             var info = {};
             var promises = ['metadata', 'format'].map(function (i) {
                 return new Promise(function (resolve, reject) {
@@ -61,8 +67,8 @@ $(document).ready(function () {
             var file = loadInfoQueue.shift();
             console.log('Now Processing: ' + file.name);
             Promise.all([loadMetaInfo(file), md5(file)]).then(function (data) {
-                data[0].md5 = data[1];
-                metaInfo[file.name] = data[0];
+                metaInfo[file.name] = data[0] || {};
+                metaInfo[file.name].md5 = data[1];
                 inputInfoQueue.push(file);
                 console.log(metaInfo);
                 checkLoadInfoQueue();
@@ -75,9 +81,9 @@ $(document).ready(function () {
             var file = inputInfoQueue.shift();
             $('.music-info').fadeIn('fast', function () {
                 onInput = true;
-                $('#inputTitle').val(metaInfo[file.name].metadata.title || '');
-                $('#inputArtist').val(metaInfo[file.name].metadata.artist || '');
-                $('#inputAlbum').val(metaInfo[file.name].metadata.album || '');
+                $('#inputTitle').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.title || '');
+                $('#inputArtist').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.artist || '');
+                $('#inputAlbum').val(metaInfo[file.name].metadata && metaInfo[file.name].metadata.album || '');
                 $('.music-info').data('file', file);
             });
         } else {
@@ -112,8 +118,8 @@ $(document).ready(function () {
         }
         if (uploadQueue.length > 0) {
             var task = uploadQueue.shift();
-            var uid = 'YOUR UID';
-            var secretKey = 'YOUR SECRET KEY';
+            var uid = '118';
+            var secretKey = 'MKpyJfHVEPFsSijBudOaboYLUWkpbwkW';
             var sign = SparkMD5.hash('' + uid + metaInfo[task.file.name].md5 + task.title + task.artist + task.album + task.desc + secretKey);
             // 获取上传Token
             var data = {
